@@ -1,4 +1,4 @@
--- Jinwen Li using SQL Server
+-- using SQL Server
 
 -- 1.Total revenue for the current year
 select sum(net_revenue)
@@ -89,7 +89,7 @@ group by year having year='2016'
  from Customers.dbo.casestudy
  where year ='2015'
 
- --The total customers for current year 2017 is 249987£¬for year 2016 is 204646, for year 2015 is 231294.
+ --The total customers for current year 2017 is 249987Â£Â¬for year 2016 is 204646, for year 2015 is 231294.
 
  -- 8.Total Customers Previous Year
  select count(distinct customer_email) as customers2016
