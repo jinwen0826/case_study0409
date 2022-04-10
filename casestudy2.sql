@@ -7,7 +7,7 @@ group by year
 order by year
 --The total revenue for the current year(2017) is 31417495.0300001
 --The total revenue for the current year(2016) is 25730943.5900001
---The total revenue for the current year(2017) is 29036749.19
+--The total revenue for the current year(2015) is 29036749.19
 
 -- 2.New Customer Revenue 
 -- for year 2017
