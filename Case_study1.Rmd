@@ -1,0 +1,212 @@
+---
+title: "Case_study1"
+author: "Jinwen Li"
+date: "4/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#	Describe the dataset and any issues with it  
+we can see this is a data frame with 55 variables about 10000 observations, but there are some NA in the data.   
+
+There are 7715 NA in months_since_90d_late(Months since the last time the applicant was 90 days late on a payment), and 5658 NA in the months_since_last_delinq(Months since the last delinquency), so we do not consider these data. Though there are 8505 NA in debt_to_income_joint(Debt-to-income ratio for two parties), 8505 NA in the annual_income_joint(a joint application, then the annual income of the two parties applying), we have only  
+1495 joint type loans, so these data are reasonable.  
+
+Also, the data in num_accounts_120d_past_due and num_accounts_30d_past_due columns are nearly all zero, so we do not consider these columns.And the current_accounts_delinq (Number of accounts where the applicant is currently delinquent) column only has 1 data which is '1', and the other data are all'0', so we don't consider this column data too.
+
+
+import and show data
+```{r}
+load("/Users/jinwen/Downloads/loans_full_schema.rda")
+head(loans_full_schema,5) 
+```
+
+```{r}
+dim(loans_full_schema) #data dimensions
+```
+```{r}
+sapply(loans_full_schema,function(x)sum(is.na(x))) #find NA of the data
+```
+
+```{r, echo=TRUE}
+summary(loans_full_schema) #summary data's characteristics
+```
+```{r}
+plot(loans_full_schema$current_accounts_delinq) #plot the current_accounts_delinq which has only one '1' value.
+```
+
+# Visualizations
+
+## plot 1:location
+```{r}
+library(ggplot2)
+data<-loans_full_schema
+ggplot(data=subset(data,!data$state==""),
+       aes(x=state))+geom_bar(fill="orange",color="black")+
+  theme(axis.text = element_text(size = 5) )
+```
+
+From plot 1, we know the most borrowers are come from CA, and FL,NY,TX also have more borrowers than other states.
+
+## plot 2: delinquency data
+```{r}
+ggplot(data=subset(data,!data$delinq_2y==""),
+       aes(x=delinq_2y))+geom_bar(fill="pink",color="black")+
+  theme(axis.text = element_text(size = 5) )+scale_x_continuous(limits = c(-1,50))
+```
+
+From plot 2, we can see most borrowers do not have any delinquency last 2 years.
+
+## plot 3: annual income
+```{r}
+bar_plot <- function(varname, binwidth) {
+  return(ggplot(aes_string(x = varname), data = data) + geom_histogram(binwidth = binwidth))
+}
+bar_plot('annual_income',4500)+
+  scale_x_continuous(limits = (c(0,230000)),breaks = seq(0,230000,10000))+
+  geom_vline(xintercept = 48000, linetype = "dashed", color = "red")+
+  geom_vline(xintercept = 65000, linetype = "dashed", color = "red")+
+  theme(panel.background =element_rect(fill="white"))+
+  theme(axis.text.x=element_text(angle = 90,hjust = 1,vjust=0,size=8))
+```
+
+From plot 3, we can see the most borrowers' annual income are between $48000 and 65000.
+
+## plot 4: grade
+```{r}
+library(gridExtra)
+data$grade <- factor(data$grade,order=TRUE,levels = c("A","B","C","D","E","F"))
+
+p4 <- ggplot(data=subset(data,!is.na(data$grade)),aes(x=grade))+
+  geom_bar(color="black",fill=I("#EAADEA"))
+p4
+```
+
+From plot 4, we can see most loans are grade B, and a lot of loans are grade A or C besides grade B.
+
+## plot 5: the relationship between loan status and debt to income
+```{r}
+summary(data$loan_status)
+```
+```{r}
+ggplot(aes(x=loan_status,y=debt_to_income),data = subset(data,!is.na(data$loan_status)))+
+  geom_boxplot()+coord_cartesian(ylim = c(0,40))+xlab("Loanstatus")
+```
+
+From plot 5, we can see the mean of debt to income ratio of fully paid loans is obviously lower than other loans. Also, the mean of debt to income ratio of Charged off loans is obviously higher than other loans. Thus, when people have lower debt in their total asset, they are more likely to fully pay back loans.  
+
+## plot 6: the relationship between loan grade and interest rate
+```{r}
+ggplot(aes(x=grade,y=interest_rate),
+       data =subset(data,!is.na(grade)))+geom_boxplot()+
+  coord_cartesian(ylim = c(5.31,31))+
+  stat_summary(fun= mean,geom = "point",shape = 4)+
+  stat_summary(fun= mean,geom = "smooth",aes(group=1))
+```
+
+From plot 6, we can see the interest rate has a positive relationship with loan grade. Lower grades will correspond to higher interest rates.  
+
+# Create a model to predict interest rate
+```{r}
+interest_rate<-data$interest_rate
+grade<-data$grade
+```
+
+```{r}
+summary(data$interest_rate)
+```
+```{r}
+hist(interest_rate, main="", probability=TRUE, xlab="interest rate")
+```
+```{r}
+summary(data$grade)
+```
+
+
+```{r}
+relat <- data.frame(data$interest_rate,data$application_type,data$homeownership,data$grade)
+pairs(relat)
+```
+
+
+From above, we can see there are some relationship between interest rate and grade, so we build model 1 as below.Before we examine the data, we need to clean data, such as remove the NA value, the outliers. When examine the model, we need to do a robust test to see if the model is robust or not. And also, we need to check the model's residuals as well as check the autocorrelation.
+
+```{r}
+model1 <- lm(interest_rate~debt_to_income+annual_income+grade,data=loans_full_schema)
+summary(model1)
+```
+
+```{r}
+anova(model1)
+```
+
+From the anava test, each variable are significant, so we can see model 1 is a good fit model. we can see if grade becomes closer to "F", the interest rate will be higher, and higher debt to income ratio will have higher interest rate.
+
+# model 1's results
+```{r}
+pre_interest<-predict(model1, newdata=data, interval="confidence")
+pre_int_fit<-pre_interest[,1]
+```
+```{r}
+plot(data$interest_rate,pre_int_fit)
+abline(a=0,b=1)
+```
+
+Check the assumptions
+```{r}
+par(mfrow=c(2,2))
+plot(model1)
+```
+
+From above plot, we can see the predicted interest rate fits well with the original interest rate which shows model 1 is a good fit.And there is no autocorrelation between residuals, residuals are constant, residuals are approximate normal.     
+If I have more time, I will add more variables into this model to see whether these variables will make the model better, also I will do more test to this model to check its robust.As we can see, there are some outliers, I will remove these outliers.    
+
+As for model 1, my assumption is the interest rate is related with the loans' grade, the borrowers' debt to income rate and the borrowers' annual income, higher grade ("A" is higher than "B") will lower the interest rate, higher debt to income ratio will increase the interest rate, and higher annual income will decrease the interest rate. From the model 1, we see my assumptions are consistent with the data.
+
+
+# Create model 2 to predict interest rate
+```{r}
+model2 <- lm(interest_rate~total_debit_limit+grade+installment,data=loans_full_schema)
+summary(model2)
+```
+```{r}
+anova(model2)
+```
+
+From the anova test, each variable are significant, and the R-squred of model 2 is 0.9514, so we can see model 2 is a good fit model.From the results, we can see total_debit_limit has a negative relationship with interest rate,borrowers who have a  higher total_debit_limit may have a lower interest rate than others.Also, grade has a negative relationship with interest rate, higher grade (here, A is a higher grade than B) may have a lower interest rate. Installment has a positive relationship with interest rate.
+
+# model 2's results
+```{r}
+pre_interest2<-predict(model2, newdata=data, interval="confidence")
+pre_int_fit2<-pre_interest2[,1]
+```
+```{r}
+plot(data$interest_rate,pre_int_fit2)
+abline(a=0,b=1)
+```
+
+Check the assumptions
+```{r}
+par(mfrow=c(2,2))
+plot(model2)
+```
+
+From above plot, we can see the predicted interest rate fits well with the original interest rate which shows model 2 is a good fit.And there is no autocorrelation between residuals, residuals are constant, residuals are approximate normal. 
+```{r}
+plot(data$application_type,data$interest_rate)
+```
+
+
+If I have more time, I will add more variables into this model to see whether these variables will make the model better, as shown above, I also want to separate the data in joint loan or individual loan. Also I will do more test to this model to check its robust. There are some outliers, so if I have more time, I will first remove the outliers then do the regression and prediction. 
+As for model 2, my assumption is the interest rate has a significant relationship with the loans' grade,total_debit_limit(total of all bank card limits), and installment(monthly payment of the loan the applicant received).   
+
+For my two models, my assumptions include: 
+The data follows a linear model.  
+The errors are uncorrelated  
+The errors have constant variance.  
+The errors are normally distributed.  
+
+
+
